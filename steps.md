@@ -1,2 +1,0 @@
-activate .
-add depenceias

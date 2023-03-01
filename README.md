@@ -5,10 +5,10 @@ title: "synthdid"
 
 # Synthdid.JL
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://d2cml-ai.github.io/Synthdid.JL.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://d2cml-ai.github.io/Synthdid.JL.jl/dev/)
-[![Build Status](https://github.com/d2cml-ai/Synthdid.JL.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/d2cml-ai/Synthdid.JL.jl/actions/workflows/CI.yml?query=branch%3Amaster)
-[![Coverage](https://codecov.io/gh/d2cml-ai/Synthdid.JL.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/d2cml-ai/Synthdid.JL.jl)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://d2cml-ai.github.io/Synthdid.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://d2cml-ai.github.io/Synthdid.jl/dev/)
+[![Build Status](https://github.com/d2cml-ai/Synthdid.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/d2cml-ai/Synthdid.JL.jl/actions/workflows/CI.yml?query=branch%3Amaster)
+[![Coverage](https://codecov.io/gh/d2cml-ai/Synthdid.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/d2cml-ai/Synthdid.jl)
 
 
 # synthdid: Synthetic Difference in Differences Estimation for Julia
@@ -30,16 +30,9 @@ Pkg.add("synthdid")
 
 ## Usage
 
-```
-Error: LoadError: ArgumentError: Package CSV not found in current path.
-- Run `import Pkg; Pkg.add("CSV")` to install the CSV package.
-in expression starting at F:\work\Synthdid.JL\src\Synthdid.JL.jl:1
-```
-
-
 
 ```julia
-using synthdid
+using synthdid, Plots
 ```
 
 
@@ -56,13 +49,8 @@ using synthdid
 Get data
 
 ```julia
-setup_data = Synthdid.panel_matrices(data("california_prop99"));
+setup_data = Synthdid.panel_matrices(Synthdid.data("california_prop99"));
 ```
-
-```
-Error: UndefVarError: panel_matrices not defined
-```
-
 
 
 
@@ -75,7 +63,8 @@ Synthdid.summary_synth(tau_hat, panel = setup_data);
 ```
 
 ```
-Error: UndefVarError: synthdid_estimate not defined
+synthdid: -15.604 +- NaN. Effective N0/N0 = 16.388/38~0.431. Effective T0/T
+0 = 2.783/19 ~ 0.146. N1,T1 = 1, 12.
 ```
 
 
@@ -89,11 +78,7 @@ p = Synthdid.synthdid_plot(tau_hat, year_unit_trayectory = setup_data.time)
 plot(p["plot"])
 ```
 
-```
-Error: UndefVarError: setup_data not defined
-```
-
-
+![](figures/README_6_1.png)
 
 
 Plots treated and synthetic control trajectories and overlays a 2x2 diff-in-diff diagram.
@@ -102,11 +87,7 @@ Plots treated and synthetic control trajectories and overlays a 2x2 diff-in-diff
 Synthdid.synthdid_units_plot(tau_hat, x_ticks = setup_data.names)
 ```
 
-```
-Error: UndefVarError: setup_data not defined
-```
-
-
+![](figures/README_7_1.png)
 
 
 

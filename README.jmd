@@ -4,10 +4,10 @@ title: synthdid
 
 # Synthdid.JL
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://d2cml-ai.github.io/Synthdid.JL.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://d2cml-ai.github.io/Synthdid.JL.jl/dev/)
-[![Build Status](https://github.com/d2cml-ai/Synthdid.JL.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/d2cml-ai/Synthdid.JL.jl/actions/workflows/CI.yml?query=branch%3Amaster)
-[![Coverage](https://codecov.io/gh/d2cml-ai/Synthdid.JL.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/d2cml-ai/Synthdid.JL.jl)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://d2cml-ai.github.io/Synthdid.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://d2cml-ai.github.io/Synthdid.jl/dev/)
+[![Build Status](https://github.com/d2cml-ai/Synthdid.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/d2cml-ai/Synthdid.JL.jl/actions/workflows/CI.yml?query=branch%3Amaster)
+[![Coverage](https://codecov.io/gh/d2cml-ai/Synthdid.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/d2cml-ai/Synthdid.jl)
 
 
 # synthdid: Synthetic Difference in Differences Estimation for Julia
@@ -29,11 +29,12 @@ Pkg.add("synthdid")
 
 ```julia; echo = false; include = false
 include("src/Synthdid.JL.jl")
+using Pkg, Plots
 Pkg.activate(".")
 ```
 
 ```julia; eval=false
-using synthdid
+using synthdid, Plots
 ```
 
 ## Inputs
@@ -48,7 +49,7 @@ using synthdid
 Get data
 
 ```julia
-setup_data = Synthdid.panel_matrices(data("california_prop99"));
+setup_data = Synthdid.panel_matrices(Synthdid.data("california_prop99"));
 ```
 
 Estimate `DID`
