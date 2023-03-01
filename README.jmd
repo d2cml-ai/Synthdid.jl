@@ -1,7 +1,6 @@
 ---
-title: "synthdid"
+title: synthdid
 ---
-
 
 # Synthdid.JL
 
@@ -21,28 +20,21 @@ This package is currently in beta and the functionality and interface is subject
 
 ## Installation
 
-```julia
+```julia; eval = false
 using Pkg
 Pkg.add("synthdid")
 ```
 
-
-
 ## Usage
 
+```julia; echo = false; include = false
+include("src/Synthdid.JL.jl")
+Pkg.activate(".")
 ```
-Error: LoadError: ArgumentError: Package CSV not found in current path.
-- Run `import Pkg; Pkg.add("CSV")` to install the CSV package.
-in expression starting at F:\work\Synthdid.JL\src\Synthdid.JL.jl:1
-```
 
-
-
-```julia
+```julia; eval=false
 using synthdid
 ```
-
-
 
 ## Inputs
 
@@ -59,14 +51,6 @@ Get data
 setup_data = Synthdid.panel_matrices(data("california_prop99"));
 ```
 
-```
-Error: UndefVarError: panel_matrices not defined
-```
-
-
-
-
-
 Estimate `DID`
 
 ```julia
@@ -74,41 +58,17 @@ tau_hat = Synthdid.synthdid_estimate(setup_data.Y, setup_data.N0, setup_data.T0)
 Synthdid.summary_synth(tau_hat, panel = setup_data);
 ```
 
-```
-Error: UndefVarError: synthdid_estimate not defined
-```
-
-
-
-
-
 Plots treated and synthetic control trajectories.
 
 ```julia
 p = Synthdid.synthdid_plot(tau_hat, year_unit_trayectory = setup_data.time)
 plot(p["plot"])
 ```
-
-```
-Error: UndefVarError: setup_data not defined
-```
-
-
-
-
 Plots treated and synthetic control trajectories and overlays a 2x2 diff-in-diff diagram.
 
 ```julia
 Synthdid.synthdid_units_plot(tau_hat, x_ticks = setup_data.names)
 ```
-
-```
-Error: UndefVarError: setup_data not defined
-```
-
-
-
-
 
 ## Methods
 
