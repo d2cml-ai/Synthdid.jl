@@ -48,6 +48,7 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: "1"
+      - run: julia -e "using Pkg; Pkg.rm(Pkg.PackageSpec(uuid="acbb3c69-ecd3-4bde-aea5-8dac56f84fcf"); mode=Pkg.PKGMODE_MANIFEST)"
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-docdeploy@v1
         env:
