@@ -1,15 +1,15 @@
 ```@meta
-CurrentModule = Synthdid.JL
+CurrentModule = Synthdid
 ```
 
-# Synthdid.JL
+# Synthdid.
 
-Documentation for [Synthdid.JL](https://github.com/d2cml-ai/Synthdid.jl).
+Documentation for [Synthdid](https://github.com/d2cml-ai/Synthdid.jl).
 
 ```@index
 
 ```
 
 ```@autodocs
-Modules = [Synthdid.JL]
+Modules = [Synthdid]
 ```

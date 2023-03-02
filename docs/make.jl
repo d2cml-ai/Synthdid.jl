@@ -1,13 +1,13 @@
-using Synthdid.JL
+using Synthdid
 using Documenter
 
-DocMeta.setdocmeta!(Synthdid.JL, :DocTestSetup, :(using Synthdid.JL); recursive=true)
+DocMeta.setdocmeta!(Synthdid, :DocTestSetup, :(using Synthdid); recursive=true)
 
 makedocs(;
-    modules=[Synthdid.JL],
+    modules=[Synthdid],
     authors="tjhon <fr.jhonk@gmail.com> and contributors",
     repo="https://github.com/d2cml-ai/Synthdid.jl/blob/{commit}{path}#{line}",
-    sitename="Synthdid.JL.jl",
+    sitename="Synthdid.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://d2cml-ai.github.io/Synthdid.jl",
@@ -20,6 +20,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/d2cml-ai/Synthdid.JL.jl",
+    repo="github.com/d2cml-ai/Synthdid.jl",
     devbranch="master"
 )
