@@ -222,4 +222,4 @@ Synthdid.synthdid_units_plot(tau_hat, x_ticks = setup_data.names)
 	- `estimate`: a syntdid_est1 object
 
 ### References
-Dmitry Arkhangelsky, Susan Athey, David A. Hirshberg, Guido W. Imbens, and Stefan Wager. Synthetic Difference in Differences, American Economic Review, December 2021.
+Dmitry Arkhangelsky, Susan Athey, David A. Hirshberg, Guido W. Imbens, and Stefan Wager. Synthetic Difference in Differences, 2019. [arxiv](https://arxiv.org/abs/1812.09970)
