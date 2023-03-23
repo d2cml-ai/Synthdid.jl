@@ -1,15 +1,75 @@
+function data_setup(
+  data::DataFrame, S_col::Union{String, Symbol}, 
+  T_col::Union{String, Symbol}, D_col::Union{String, Symbol}
+)
+
+  select!(groupby(data, S_col), :, D_col => maximum => :tunit)
+  data.ty = @. ifelse(data[:, D_col] == 0, nothing, data[:, T_col])
+  select!(groupby(data, S_col), :, :ty => minnothing => :tyear)
+  sort!(data, [T_col, :tunit, S_col])
+
+  return data
+end
+
+function projected(data, Y_col, S_col, T_col, covariates)
+
+  k = size(covariates, 1)
+  X = Matrix(data[:, covariates])
+  y = data[:, Y_col]
+
+  # Pick non-treated
+  df_c = data[isnothing.(data.tyear), :]
+
+  # One-hot encoding for T_col and S_col
+  select!(df_c, :, [S_col => ByRow(isequal(v)) => Symbol(v) for v in unique(df_c[:, S_col])[2:end]])
+  select!(df_c, :, [T_col => ByRow(isequal(v)) => Symbol(v) for v in unique(df_c[:, T_col])[2:end]])
+  o_h_cov = Symbol.([covariates; unique(df_c[:, S_col])[2:end]; unique(df_c[:, T_col])[2:end]])
+
+  # Create X_c Matrix with covariates, one-hot encoding for T_col and S_col. Create Y_c vector
+  y_c = df_c[:, Y_col]
+  X_c = Matrix(df_c[:, o_h_cov])
+
+  # OLS of Y_c on X_c, get β
+  XX = [X_c ones(size(X_c, 1))]' * [X_c ones(size(X_c, 1))]
+  Xy = [X_c ones(size(X_c, 1))]' * y_c
+  all_beta = inv(XX) * Xy
+  beta = all_beta[1:k]
+
+  # Calculate adjusted Y
+  Y_adj = y - X * beta
+  
+  # Output projected data
+  data[:, Y_col] = Y_adj
+  return data
+end
+
+function minnothing(x)
+  x = x[.!isnothing.(x)]
+  if length(x) == 0
+    return nothing
+  end
+  return minimum(x)
+end
+
+function find_treat(W)
+  N1 = 0
+  for row in eachrow(W)
+    if 1 in row
+      N1 += 1
+    end
+  end
+  return N1
+end
 
 
+function collapse_form(Y::Matrix, N0::Int64, T0::Int64)
+  N, T = size(Y)
+  Y_T0N0 = Y[1:N0, 1:T0]
+  Y_T1N0 = mean(Y[1:N0, T0 + 1:end], dims = 2)
+  Y_T0N1 = mean(Y[N0 + 1:end, 1:T0], dims = 1)
+  Y_T1N1 = mean(Y[N0 + 1:end, T0 + 1:end])
 
-function collapse_form(Y::Union{DataFrame,Matrix}, N0::Int64, T0::Int64)
-  N, T = size(Matrix(Y))
-  head = Y[1:N0, 1:T0]
-  head_row_mean = mean(Y[1:N0, (T0+1):T], dims=2)
-  head_matrix = hcat(head, head_row_mean)
-  bottom_col_mean = mean(Y[(N0+1):N, 1:T0], dims=1)
-  bottom = mean(Y[(N0+1):N, (T0+1):T])
-  bottom_matrix = hcat(bottom_col_mean, bottom)
-  return vcat(head_matrix, bottom_matrix)
+  return [Y_T0N0 Y_T1N0; Y_T0N1 Y_T1N1]
 end
 
 # function pairwise_sum_decreasing(x::Vector{Number}, y::Vector{Number})
@@ -21,51 +81,6 @@ function pairwise_sum_decreasing(x::Vector, y::Vector)
   pairwise_sum = x .+ y
   pairwise_sum[na_x.&na_y] .= NaN
   return pairwise_sum
-end
-
-mutable struct panelMatrix
-  Y::Array
-  W::Array
-  names::Vector
-  time::Vector
-  N0::Int
-  T0::Int
-end
-
-function panel_matrices(panel::DataFrame;
-  unit::Union{String,Int}=1, time::Union{String,Int}=2,
-  outcome::Union{String,Int}=3, treatment::Union{String,Int}=4,
-  treated_last::Bool=true)
-  index_to_name(x) = x in 1:size(panel, 2) ? names(panel)[x] : x
-  if any(ismissing.(eachrow(panel)))
-    error("Missing values in `panel`.")
-  end
-  keep = [unit, time, outcome, treatment]
-  panel = panel[:, keep]
-  panel = sort(panel, [unit, time])
-
-  unique_years = unique(panel[:, time])
-  unique_units = unique(panel[:, unit])
-
-  num_years = length(unique(panel[:, time]))
-  num_units = length(unique(panel[:, unit]))
-
-  Y = reshape(panel[:, outcome], num_years, num_units)'
-  W = reshape(panel[:, treatment], num_years, num_units)'
-
-  w = sum(W, dims=2)
-  w = [x > 0 for x in w]
-  N0 = num_units - sum(w)
-  treat_time = any(W, dims=1)
-  T0 = ([i for i in 1:length(treat_time) if treat_time[i]] |> first) - 1
-
-  unit_order = if treated_last
-    sortperm(W[:, T0+1])
-  else
-    collect(1:size(Y, 1))
-  end
-  panel = panelMatrix(Y[unit_order, :], W[unit_order, :], unique_units, unique_years, N0, T0)
-  return panel
 end
 
 mutable struct random_walk
