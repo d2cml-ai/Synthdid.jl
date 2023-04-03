@@ -1,14 +1,20 @@
+function sparsify_function(v::Vector)
+  v[v .<= maximum(v) / 4] .= 0
+  return v ./ sum(v)
+end
+
 function data_setup(
   data::DataFrame, S_col::Union{String, Symbol}, 
   T_col::Union{String, Symbol}, D_col::Union{String, Symbol}
 )
 
-  select!(groupby(data, S_col), :, D_col => maximum => :tunit)
-  data.ty = @. ifelse(data[:, D_col] == 0, nothing, data[:, T_col])
-  select!(groupby(data, S_col), :, :ty => minnothing => :tyear)
-  sort!(data, [T_col, :tunit, S_col])
+  tdf = copy(data)
+  select!(groupby(tdf, S_col), :, D_col => maximum => :tunit)
+  tdf.ty = @. ifelse(tdf[:, D_col] == 0, nothing, tdf[:, T_col])
+  select!(groupby(tdf, S_col), :, :ty => minnothing => :tyear)
+  sort!(tdf, [T_col, :tunit, S_col])
 
-  return data
+  return tdf
 end
 
 function projected(data, Y_col, S_col, T_col, covariates)
@@ -40,7 +46,7 @@ function projected(data, Y_col, S_col, T_col, covariates)
   
   # Output projected data
   data[:, Y_col] = Y_adj
-  return data
+  return data, beta
 end
 
 function minnothing(x)
@@ -60,7 +66,6 @@ function find_treat(W)
   end
   return N1
 end
-
 
 function collapse_form(Y::Matrix, N0::Int64, T0::Int64)
   N, T = size(Y)

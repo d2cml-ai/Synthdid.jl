@@ -1,122 +1,164 @@
+function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...)
+  att_jk = []
+  Y_col = Symbol(Y_col)
+  S_col = Symbol(S_col)
+  T_col = Symbol(T_col)
+  units = unique(data[S_col])
+  N = size(units, 1)
 
-
-function vcov_synthdid_estimate(object; method="bootstrap", replications=200)
-    if method == "bootstrap"
-        se = bootstrap_se(object, replications)
-    elseif method == "jackknife"
-        se = jackknife_se(object)
-    elseif method == "placebo"
-        se = placebo_se(object, replications)
+  if isnothing(att)
+    res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
+    att = res["att"]
+    if any(res["year_params"]["N1"] .< 1)
+      throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period"))
     end
-    se^2
+  end
+
+  print("Bootstrap replications (",  n_reps, "). This may take some time.\n")
+  print("----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5\n")
+  
+  function theta(unit)
+
+    # create aux data and aux results
+    aux_data = data[data[S_col] .!= unit, :]
+    aux_res = sdid(aux_data, Y_col, S_col, T_col, D_col, kwargs...)
+
+    # check all adoption periods have at least 2 treatment units
+    if any(aux_res["year_params"]["N1"] .< 1)
+      throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period"))
+    end
+
+    # find aux att
+    aux_att = aux_res["att"]
+    return aux_att
+  end
+
+  for unit in units
+    print(".")
+    if t % 50 == 0
+      print("     ", t, "\n")
+    end
+    aux_att = theta(unit)
+    att_jk = [att_jk; aux_att]
+  end
+
+  # find jk_se
+  jk_se = (N - 1)/N * sum((aux_att - att) .^ 2)
+
+  return jk_se ^ (1/2)
 end
 
-function bootstrap_se(estimate, replications)
-    sqrt((replications - 1) / replications) * std(bootstrap_sample(estimate, replications))
+function bootstrap_se(data, Y_col, S_col, T_col, D_col; n_boot = 50, kwargs...)
+
+  att_bs = []
+  Y_col = Symbol(Y_col)
+  S_col = Symbol(S_col)
+  T_col = Symbol(T_col)
+  units = unique(data[:, S_col])
+  N = length(units)
+  if all(in.(["tunit", "ty", "tyear"], Ref(names(data))))
+    tdf = copy(data)
+  else
+    tdf = data_setup(data, S_col, T_col, D_col)
+  end
+  print("Bootstrap replications (",  n_reps, "). This may take some time.\n")
+  print("----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5\n")
+
+  function theta(df)
+    sample = rand(1:N, N)
+    data_aux = copy(df)
+    sampled_data = reduce(vcat, [groupby(data_aux, S_col)[i] for i in sample])
+    
+    if all(sampled_data[:, D_col] .== 1) || all(sampled_data[:, D_col] .== 0)
+      theta(df)
+    end
+    
+    for time in groupby(sampled_data, T_col)
+      time[:, :id] = collect(1, size(time, 1))
+    end
+    boot_res = sdid(sampled_data, Y_col, :id, T_col, D_col; kwargs...)
+
+    return boot_res["att"]
+  end
+
+  i = 1
+  while i <= n_boot
+    print(".")
+    if t % 50 == 0
+      print("     ", t, "\n")
+    end
+    aux_att = theta(tdf)
+    att_bs = [att_bs; aux_att]
+    i += 1
+  end
+
+  print("\n")
+  bs_se = 1/n_boot * sum((att_bs .- sum(att_bs / n_boot)) .^ 2)
+
+  return bs_se ^ (1/2)
 end
 
-function bootstrap_sample(estimate, replications)
-    setup = estimate.setup
-    opts = estimate.opts
-    weights = estimate.weight
-    if setup["N0"] == size(setup["Y"])[1] - 1
-        return NaN
-    end
-    function theta(ind)
-        if all(ind .<= setup["N0"]) || all(ind .> setup["N0"])
-            NaN
-        else
-            weights1 = copy(weights)
-            weights_boot = weights1
-            weights_boot["omega"] = sum_normalize(weights["omega"][sort(ind[ind.<=setup["N0"]])])
-            synthdid_estimate(setup["Y"][sort(ind), :], sum(ind .<= setup["N0"]), setup["T0"], X=setup["X"][sort(ind), :, :], weights=weights_boot,
-                zeta_omega=opts["zeta_omega"], zeta_lambda=opts["zeta_lambda"], omega_intercept=opts["omega_intercept"],
-                lambda_intercept=opts["lambda_intercept"], update_omega=opts["update_omega"], update_lambda=opts["update_lambda"],
-                min_decrease=opts["min_decrease"], max_iter=opts["max_iter"])
-        end
+function placebo_se(data, Y_col, S_col, T_col, D_col; n_reps = 50, kwargs...)
+  
+  att_p = []
+  Y_col = Symbol(Y_col)
+  S_col = Symbol(S_col)
+  T_col = Symbol(T_col)
+
+  if all(in.(["tunit", "ty", "tyear"], Ref(names(data))))
+    tdf = copy(data)
+  else
+    tdf = data_setup(data, S_col, T_col, D_col)
+  end
+
+  tr_years = tdf[(.!isnothing.(tdf.tyear)) .&& (tdf[:, T_col] .== tdf.tyear), T_col]
+  N_tr = size(tr_years, 1)
+  df_co = tdf[tdf.tunit .== 0, :]
+  N_co = size(unique(df_co[:, S_col]), 1)
+  N_aux = N_co - N_tr
+  print("Placebo replications (",  n_reps, "). This may take some time.\n")
+  print("----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5\n")
+  
+  function theta(df)
+
+    aux_data = copy(df)
+    aux_data = groupby(aux_data, S_col)[shuffle(1:end)]
+  
+    for i in 1:N_tr
+      aux_data[N_aux + i][:, :tyear] .= tr_years[i]
     end
 
-    bootstrap_estimates = repeat([NaN], replications)
-    count = 0
-    while count < replications
-        a = theta(sample(1:size(setup["Y"])[1], size(setup["Y"])[1], replace=true))
-        if typeof(a) == synthdid_est1
-            bootstrap_estimates[count+1] = a.estimate
-            count = count + 1
-        end
+    aux_data = combine(aux_data, :)
+
+    aux_data[(.!isnothing.(aux_data.tyear)) .&& (aux_data[:, T_col] .>= aux_data.tyear), D_col] .= 1
+    aux_data = aux_data[:, Not(:tunit)]
+    select!(groupby(tdf, S_col), :, D_col => maximum => :tunit)
+
+    res_p = sdid(aux_data, Y_col, S_col, T_col, D_col; kwargs...)
+    aux_att = res_p["att"]
+    return aux_att
+  end
+
+  t = 1
+  while t <= n_reps
+    print(".")
+    if t % 50 == 0
+      print("     ", t, "\n")
     end
-    bootstrap_estimates
+    aux_att = theta(df_co)
+    att_p = [att_p; aux_att]
+    t += 1
+  end
+
+  print("\n")
+  p_se = 1/n_reps * sum((att_p .- sum(att_p / n_reps)) .^ 2)
+  return p_se ^ (1/2)
 end
 
-function jackknife_se(estimate; weights=estimate.weight)
-    setup = estimate.setup
-    opts = estimate.opts
-    weights = estimate.weight
-    if !isnothing(weights)
-        opts["update_omega"] = opts["update_lambda"] = false
-    end
-    if setup["N0"] == size(setup["Y"])[1] - 1 || (!isnothing(weights) && sum(weights["omega"] != 0) == 1)
-        return NaN
-    end
-
-    function jackknife(x)
-        n = length(x)
-        u = repeat([0.0], n)
-        function theta(ind)
-            weights1 = copy(weights)
-            weights_jk = weights1
-            if !isnothing(weights)
-                weights_jk["omega"] = sum_normalize(weights["omega"][ind[ind.<=setup["N0"]]])
-            end
-            synthdid_estimate(setup["Y"][ind, :], sum(ind .<= setup["N0"]), setup["T0"], X=setup["X"][ind, :, :], weights=weights_jk,
-                zeta_omega=opts["zeta_omega"], zeta_lambda=opts["zeta_lambda"], omega_intercept=opts["omega_intercept"],
-                lambda_intercept=opts["lambda_intercept"], update_omega=opts["update_omega"], update_lambda=opts["update_lambda"],
-                min_decrease=opts["min_decrease"], max_iter=opts["max_iter"])
-        end
-        for i in 1:n
-            u[i] = theta(x[Not(i)]).estimate
-        end
-        jack_se = sqrt(((n - 1) / n) * (n - 1) * var(u))
-
-        jack_se
-    end
-    jackknife(1:size(setup["Y"])[1])
-end
-
-function placebo_se(estimate, replications)
-    setup = estimate.setup
-    opts = estimate.opts
-    weights = estimate.weight
-    N1 = size(setup["Y"])[1] - setup["N0"]
-    if setup["N0"] <= N1
-        error("must have more controls than treated units to use the placebo se")
-    end
-    function theta(ind)
-        N0 = length(ind) - N1
-        weights1 = copy(weights)
-        weights_boot = weights1
-        weights_boot["omega"] = sum_normalize(weights["omega"][ind[1:N0]])
-        synthdid_estimate(setup["Y"][ind, :], N0, setup["T0"], X=setup["X"][ind, :, :], weights=weights_boot,
-            zeta_omega=opts["zeta_omega"], zeta_lambda=opts["zeta_lambda"], omega_intercept=opts["omega_intercept"],
-            lambda_intercept=opts["lambda_intercept"], update_omega=opts["update_omega"], update_lambda=opts["update_lambda"],
-            min_decrease=opts["min_decrease"], max_iter=opts["max_iter"])
-    end
-
-    a = 0
-    for i in 1:replications
-        if i == 1
-            a = theta(shuffle(1:setup["N0"])).estimate
-        else
-            a = vcat(a, theta(shuffle(1:setup["N0"])).estimate)
-        end
-    end
-    sqrt((replications - 1) / replications) * std(a)
-end
-
-function sum_normalize(x)
-    if sum(x) != 0
-        x / sum(x)
-    else
-        repeat([1 / length(x)], length(x))
-    end
-end
+# function sum_normalize(x)
+#     if sum(x) != 0
+#         x / sum(x)
+#     else
+#         repeat([1 / length(x)], length(x))
+#     end
+# end
