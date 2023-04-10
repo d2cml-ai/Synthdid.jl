@@ -1,4 +1,4 @@
-function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...)
+function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; n_reps = 50, kwargs...)
   att_jk = []
   Y_col = Symbol(Y_col)
   S_col = Symbol(S_col)
