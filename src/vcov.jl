@@ -38,7 +38,7 @@ function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...
   end
 
   # find jk_se
-  jk_se = (N - 1)/N * sum((aux_jk - att) .^ 2)
+  jk_se = (N - 1)/N * sum((att_jk - att) .^ 2)
 
   return jk_se ^ (1/2)
 end
