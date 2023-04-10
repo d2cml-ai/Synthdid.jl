@@ -9,7 +9,7 @@ function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...
   if isnothing(att)
     res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
     att = res["att"]
-    if any(res["year_params"]["N1"] .< 1)
+    if any(res["year_params"][:, "N1"] .< 1)
       throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period"))
     end
   end
@@ -20,11 +20,11 @@ function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...
   function theta(unit)
 
     # create aux data and aux results
-    aux_data = data[data[S_col] .!= unit, :]
+    aux_data = data[data[:, S_col] .!= unit, :]
     aux_res = sdid(aux_data, Y_col, S_col, T_col, D_col, kwargs...)
 
     # check all adoption periods have at least 2 treatment units
-    if any(aux_res["year_params"]["N1"] .< 1)
+    if any(aux_res["year_params"][:, "N1"] .< 1)
       throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period"))
     end
 
