@@ -1,4 +1,4 @@
-function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; n_reps = 50, kwargs...)
+function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...)
   att_jk = []
   Y_col = Symbol(Y_col)
   S_col = Symbol(S_col)
@@ -14,8 +14,6 @@ function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; n_reps = 
     end
   end
 
-  print("Bootstrap replications (",  n_reps, "). This may take some time.\n")
-  print("----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5\n")
   
   function theta(unit)
 
@@ -35,9 +33,6 @@ function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; n_reps = 
 
   for unit in units
     print(".")
-    if t % 50 == 0
-      print("     ", t, "\n")
-    end
     aux_att = theta(unit)
     att_jk = [att_jk; aux_att]
   end
