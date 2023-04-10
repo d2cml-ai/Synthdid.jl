@@ -3,7 +3,7 @@ function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...
   Y_col = Symbol(Y_col)
   S_col = Symbol(S_col)
   T_col = Symbol(T_col)
-  units = unique(data[S_col])
+  units = unique(data[:, S_col])
   N = size(units, 1)
 
   if isnothing(att)
