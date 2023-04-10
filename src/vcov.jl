@@ -84,7 +84,7 @@ function bootstrap_se(data, Y_col, S_col, T_col, D_col; n_boot = 50, kwargs...)
   i = 1
   while i <= n_boot
     print(".")
-    if t % 50 == 0
+    if i % 50 == 0
       print("     ", t, "\n")
     end
     aux_att = theta(tdf)
