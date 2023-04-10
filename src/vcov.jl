@@ -61,7 +61,7 @@ function bootstrap_se(data, Y_col, S_col, T_col, D_col; n_boot = 50, kwargs...)
   else
     tdf = data_setup(data, S_col, T_col, D_col)
   end
-  print("Bootstrap replications (",  n_reps, "). This may take some time.\n")
+  print("Bootstrap replications (",  n_boot, "). This may take some time.\n")
   print("----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5\n")
 
   function theta(df)
@@ -74,7 +74,7 @@ function bootstrap_se(data, Y_col, S_col, T_col, D_col; n_boot = 50, kwargs...)
     end
     
     for time in groupby(sampled_data, T_col)
-      time[:, :id] = collect(1, size(time, 1))
+      time[:, :id] = collect(1: size(time, 1))
     end
     boot_res = sdid(sampled_data, Y_col, :id, T_col, D_col; kwargs...)
 
