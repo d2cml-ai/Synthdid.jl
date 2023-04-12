@@ -21,19 +21,24 @@ function sdid(
 
   if all(in.(["tunit", "ty", "tyear"], Ref(names(data))))
     tdf = copy(data)
+    sort!(tdf, [T_col, :tunit, S_col])
   else
     tdf = data_setup(data, S_col, T_col, D_col)
   end
 
+  t_span = collect(minimum(data[:, T_col]): maximum(data[:, T_col]))
   tyears = sort(unique(tdf.tyear)[.!isnothing.(unique(tdf.tyear))])
   T_total = sum(Matrix(unstack(tdf, S_col, T_col, D_col)[:, 2:end]))
-  units = unique(data[:, S_col])
+  units = unique(tdf[:, S_col])
   N_out = size(units, 1)
+  N0_out = size(unique(tdf[tdf.tunit .== 0, S_col]), 1)
 
   tdf_ori = copy(tdf)
-  info_names = ["year", "tau", "weighted_tau", "N0", "T0", "N1", "T1"]
+  info_names = ["treat_year", "tau", "weighted_tau", "N0", "T0", "N1", "T1"]
   year_params = DataFrame([[] for i in info_names], info_names)
+  year_weights = Dict("omega" => DataFrame([units[1:N0_out]], [S_col]), "lambda" => Dict())
   T_out = size(unique(tdf[:, T_col]), 1)
+  Y_out = Dict()
   info_beta = []
 
   # project covariates method
@@ -44,7 +49,7 @@ function sdid(
     end
 
     # create DataFrame with projected data
-    tdf, info_beta = projected(tdf, Y_col, S_col, T_col, covariates)
+    tdf, info_beta, X_out = projected(tdf, Y_col, S_col, T_col, covariates)
   end
 
   # estimation when no covariates or already projected covariates
@@ -124,6 +129,9 @@ function sdid(
       end
       info_df = DataFrame([i for i in info], names(year_params))
       append!(year_params, info_df)
+      year_weights["omega"][:, string(year)] = omega
+      year_weights["lambda"][string(year)] = lambda
+      Y_out[string(year)] = Y
     end
     
     att = sum(att)
@@ -135,6 +143,7 @@ function sdid(
     for covariate in covariates
       year_params[:, "beta_" * String(covariate)] = []
     end
+    X_out = Dict()
 
     # for a in A
     for year in tyears
@@ -182,18 +191,34 @@ function sdid(
       tau_hat = [-weights["omega"]; fill(1/N1, N1)]' * (Y - X_beta) * [-weights["lambda"]; fill(1/T1, T1)]
       tau_w = T_post / T_total * tau_hat
       att = [att; tau_w]
+
+      # add to output
       info = [year tau_hat tau_w N0 T0 N1 T1]
       info = [info weights["beta"]']
       info_df = DataFrame([i for i in info], names(year_params))
       append!(year_params, info_df)
+      year_weights["omega"][:, string(year)] = omega
+      year_weights["lambda"][string(year)] = lambda
+      Y_out[string(year)] = Y
+      X_out[string(year)] = X
     end
     
     # weighed average of tau
     att = sum(att)
   end
   
-  out = Dict("att" => att, "year_params" => year_params, "T" => T_out, "N" => N_out, "data" => data, "proc_data" => tdf_ori)
+  # prepare output
+  out = Dict(
+    "att" => att, "year_params" => year_params, "T" => T_out, "N" => N_out, 
+    "data" => data, "proc_data" => tdf_ori, "tyears" => tyears, "weights" => year_weights, 
+    "Y" => Y_out, "units" => units, "t_span" => t_span
+  )
 
+  if !isnothing(cov_method) && !isnothing(covariates)
+    out["X"] = X_out
+    out["covariates"] = covariates
+    out["cov_method"] = cov_method
+  end
   return out
 end
 

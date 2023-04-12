@@ -46,7 +46,7 @@ function projected(data, Y_col, S_col, T_col, covariates)
   
   # Output projected data
   data[:, Y_col] = Y_adj
-  return data, beta
+  return data, beta, X
 end
 
 function minnothing(x)

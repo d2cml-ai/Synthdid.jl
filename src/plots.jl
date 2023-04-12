@@ -1,266 +1,178 @@
 
-function synthdid_plot(estimates::synthdid_est1; treated_name="Treated", control_name="Synthetic control",
-  treated_color="#043e7c", control_color="#d8450a",
-  year_unit_trayectory=nothing,
-  facet=nothing, lambda_comparable=!isnothing(facet), overlay=0,
-  lambda_plot_scale=3, line_width=1, guide_linetype=:dash, point_size=3,
-  diagram_alpha=0.95, trayectory_linewidth=2,
-  se_method="jackknife")
+function plot_outcomes(
+  data, Y_col::Union{String, Symbol}, S_col::Union{String, Symbol}, 
+  T_col::Union{String, Symbol}, D_col::Union{String, Symbol}; kwargs...
+)
 
+  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...);
+  t_span = res["t_span"]; 
+  tyears = res["tyears"];
+  N0 = size(res["weights"]["omega"], 1)
+  plots = Dict()
 
-  esti_mate = estimates.estimate
+  for year in tyears
+    year_str = string(year);
+    T0 = res["year_params"][res["year_params"].treat_year .== year, "T0"][1];
+    T0 = Int(T0);
 
-  expand_grid = collect(Base.product(1:length(esti_mate), 1:length(overlay)))
-  s_estimate = [r[1] for r in expand_grid]
-  s_overlay = [r[2] for r in expand_grid]
+    # get weights
+    omega_hat = res["weights"]["omega"][:, year_str];
+    lambda_hat = res["weights"]["lambda"][year_str];
 
+    # create matrices to calculate trajectory
+    Y_year = copy(res["Y"][year_str]);
+    Y_pre_c = Y_year[1:N0, 1:T0];
+    Y_post_c = Y_year[1:N0, T0 + 1:end];
+    Y_pre_t = mean(Y_year[N0 + 1:end, 1:T0], dims = 1);
+    Y_post_t = mean(Y_year[N0 + 1:end, T0 + 1:end], dims = 1);
+    Y_t = [Y_pre_t Y_post_t];
+    Y_c = [Y_pre_c Y_post_c]
 
-  vec_s = size(s_estimate, 2) * size(s_estimate, 1)
+    # calculate synth outcome trajectory
+    n_features = size(Y_c, 1);
+    start_w = fill(1/n_features, n_features);
+    omega_hat = res["weights"]["omega"][:, year_str];
+    lambda_hat = res["weights"]["lambda"][year_str];
+    _intercept = (start_w - omega_hat)' * Y_pre_c * lambda_hat;
+    Y_sdid_traj = omega_hat' * Y_c # .+ _intercept;
 
-  s1_estimate = reshape(s_estimate, vec_s, 1)[:, 1]
-  s1_overlay = reshape(s_overlay, vec_s, 1)[:, 1]
-  grid = DataFrame(estimate=s1_estimate, overlay=s1_overlay)
+    # plot parameters for scaling/offsets
+    plot_y_min = minimum([Y_sdid_traj; Y_t])
+    plot_y_max = maximum([Y_sdid_traj; Y_t])
+    plot_height = plot_y_max - plot_y_min
 
-  row = 1
-
-  est = esti_mate[grid[row, "estimate"]]
-
-  over = try
-    overlay[grid[row, "overlay"]]
-  catch
-    overlay[row]
+    p = plot(t_span, Y_sdid_traj', label = "Control", ls = :dash)
+    plot!(t_span, Y_t', label = "Treatment")
+    plot!(t_span[1:T0], lambda_hat .* plot_height' / 3 .+ plot_y_min, label = "", fillrange = plot_y_min, lw = 0)
+    vline!([year], label = "")
+    xlabel!("Year")
+    title!("Adoption: " * year_str)
+    plots[year_str] = p
   end
-
-
-  #TODO: implement vcov se
-  se = if isnothing(se_method)
-    return NaN
-  else
-    sqrt(vcov_synthdid_estimate(estimates, method=se_method))
-  end
-
-
-  setup, weights, N0, T0 = estimates.setup, estimates.weight, estimates.N0, estimates.T0
-  Y = setup["Y"] .- contract3(setup["X"], weights["beta"])
-  N1, T1 = size(Y) .- (N0, T0)
-
-  lambda_synth = vcat(weights["lambda"], fill(0, T1))
-  lambda_target = vcat(fill(0, T0), fill(1 / T1, T1))
-
-  omega_synth = vcat(weights["omega"], fill(0, N1))
-  omega_target = vcat(fill(0, N0), fill(1 / N1, N1))
-
-  over = try
-    over = estimates.overlat
-  catch
-    over = over
-  end
-
-  is_sc = all(weights["lambda"] .== 0) || over == 1
-
-  intercept_offset = over * (omega_target .- omega_synth)' * Y * lambda_synth
-
-  obs_trayectory = omega_target' * Y
-  syn_trayectory = (omega_synth' * Y) .+ intercept_offset
-
-  treated_post = omega_target' * Y * lambda_target
-  treated_pre = omega_target' * Y * lambda_synth
-
-  control_post = omega_synth' * Y * lambda_target + intercept_offset
-  control_pre = omega_synth' * Y * lambda_synth + intercept_offset
-
-  sdid_post = control_post + treated_pre - control_pre
-
-  if isnothing(year_unit_trayectory)
-    year_unit = collect(1:length(obs_trayectory))
-  else
-    year_unit = year_unit_trayectory
-  end
-  time = year_unit
-
-  if length(time) == 0 || !all(isfinite.(time))
-    time = 1:(T0+T1)
-  end
-
-  pre_time = lambda_synth' * time
-  post_time = lambda_target' * time
-
-
-  # treated_name = "Treated"
-  # treated_color = "#d8450a"
-  # control_name = "Synthetic control"
-  # control_color = "#043e7c"
-
-  lines = DataFrame(
-    y=hcat(obs_trayectory, syn_trayectory)'[:, 1],
-    x=repeat(time, 2),
-    label=vcat(
-      fill(treated_name, length(obs_trayectory)),
-      fill(control_name, length(syn_trayectory))
-    )
-  )
-
-  points = DataFrame(
-    x=[post_time, post_time],
-    y=[treated_post, sdid_post],
-    label=[treated_name, control_name],
-    color=[treated_color, control_color]
-  )
-
-  did_points = DataFrame(
-    x=[pre_time, pre_time, post_time, post_time],
-    y=[treated_pre, control_pre, control_post, treated_post],
-    label=[treated_name, control_name, control_name, treated_name],
-    color=[treated_color, control_color, control_color, treated_color]
-  )
-
-  hallucinated_segments = DataFrame(
-    x=[pre_time, post_time],
-    y=[treated_pre, sdid_post]
-  )
-
-  guide_segment = DataFrame(
-    x=[pre_time, post_time, pre_time, post_time],
-    y=[control_pre, control_post, treated_pre, sdid_post],
-    label=["pre", "post", "pre", "post"]
-  )
-
-  arrow_df = DataFrame(
-    x=[post_time, post_time],
-    y=[sdid_post, treated_post],
-    color=control_color
-  )
-
-  if lambda_comparable
-    height = (maximum(obs_trayectory) - min(obs_trayectory)) / lambda_plot_scale
-    bottom = minimum(obs_trayectory) .- height
-    ribbons = DataFrame(x=time[1:T0], y=bottom .+ height .* lambda_synth[1:T0])
-  else
-    eval_algo = vcat(obs_trayectory', syn_trayectory')
-    height = (
-      maximum(eval_algo) -
-      minimum(eval_algo)
-    ) / lambda_plot_scale
-    bottom = minimum(eval_algo) - height
-    ribbons = DataFrame(
-      x=time[1:T0],
-      y=bottom .+ height .* lambda_synth[1:T0] ./ maximum(lambda_synth)
-    )
-  end
-
-  T0s = try
-    time[est.T0s]
-  catch
-    time[T0]
-  end
-
-
-  p = plot()
-  plot!(time, obs_trayectory', label="Treated", color=treated_color, linewidth=trayectory_linewidth)
-  plot!(time, syn_trayectory', label="Synthetic control", color=control_color, linewidth=trayectory_linewidth)
-  scatter!(points.x, points.y, label="", color=points.color, ms=point_size, alpha=diagram_alpha)
-  scatter!(did_points.x, did_points.y, color=did_points.color, label="", ms=point_size, alpha=diagram_alpha)
-  plot!(hallucinated_segments.x, hallucinated_segments.y, color="black", label="", line=guide_linetype, linewidth=line_width)
-  for i in [treated_name, control_name]
-    df_algo = filter(row -> row.label == i, did_points)
-    plot!(df_algo.x, df_algo.y, color=df_algo.color, label="")
-  end
-  for i in ["pre", "post"]
-    df_algo = filter(row -> row.label == i, guide_segment)
-    plot!(df_algo.x, df_algo.y, label="", color="black", line=guide_linetype, linewidth=line_width)
-  end
-  plot!()
-  plot!(arrow_df.x, arrow_df.y, color=control_color, arrow=(0.5, 0.1), line_width=0.1, label="")
-  plot!(ribbons.x, ribbons.y, fillrange=bottom, color=control_color, label="")
-  plot!(ribbons.x, ribbons.y, color=treated_color, label="", linewidth=line_width)
-  vline!([T0s], color="black", alpha=0.4, label="")
-  # xlabel!("Time")
-  # ylabel!("Trayectory")
-
-  plot_description = Dict(
-    "lines" => lines,
-    "points" => points,
-    "did_points" => did_points,
-    "hallucinated_segments" => hallucinated_segments,
-    "guide_segment" => guide_segment,
-    "arrow_df" => arrow_df,
-    "ribbons" => ribbons,
-    "T0s" => T0s,
-    "plot" => p)
-  plot(p)
-  return plot_description
-
+  return plots
 end
 
-function synthdid_units_plot(estimate::synthdid_est1; se_method::String="placebo", negligible_alpha::Float64=0.3, negligible_threshold::Float64=0.001, x_ticks=nothing)
-  est = estimate
+function plot_weights(
+  data, Y_col::Union{String, Symbol}, S_col::Union{String, Symbol}, 
+  T_col::Union{String, Symbol}, D_col::Union{String, Symbol}; kwargs...
+)
 
-  setup, weights, N0, T0 = est.setup, est.weight, est.N0, est.T0
+  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
+  tyears = res["tyears"]
+  plots = Dict()
 
-  Y = setup["Y"] - contract3(setup["X"], weights["beta"])
+  for year in tyears
+    year_str = string(year)
+    # if isnothing(units) units = res["weights"]["omega"][:, S_col]
+    units = res["weights"]["omega"][:, :country]
+    omega_hat = res["weights"]["omega"][:, year_str]
+    lambda_hat = res["weights"]["lambda"][year_str]
+    N0 = size(omega_hat, 1)
+    T0 = size(lambda_hat, 1)
+    Y = copy(res["Y"][year_str])
+    N, T = size(Y)
+    N1, T1 = (N, T) .- (N0, T0)
 
-  N1, T1 = size(Y) .- (N0, T0)
+    lambda_pre = [lambda_hat; zeros(T1)]
+    lambda_post = [zeros(T0); fill(1/T1, T1)]
+    omega_control = [omega_hat; zeros(N1)]
+    omega_treat = [zeros(N0); fill(1/N1, N1)]
+    difs = omega_treat' * Y * (lambda_post - lambda_pre) .- Y[1:N0, :] * (lambda_post - lambda_pre)
 
-  lambda_pre = vcat(weights["lambda"], fill(0, T1))
-  lambda_post = vcat(zeros(T0), fill(1 / T1, T1))
+    plot_units = reshape(units, (1, N0))
+    plot_difs = reshape(difs, (1, N0))
+    plot_ms = reshape(omega_hat, (1, N0)) / maximum(omega_hat)
+    plot_shape = @. ifelse(plot_ms == 0, :xcross, :circle)
+    plot_cols = @. ifelse(plot_ms == 0, :red, :dodgerblue4)
+    plot_msw = @. ifelse(plot_ms == 0, 1, 0)
+    plot_ms = (plot_ms .+ 4 * maximum(omega_hat)) * 6
+    plot_ms[plot_ms .== 40 * maximum(omega_hat)] .= 4
+    
+    p = plot(
+        plot_units, plot_difs, seriestype = :scatter, label = "", mc = plot_cols, xrotation = 90, 
+        xticks = (1:N0, units), ms = plot_ms, shape = plot_shape, msw = plot_msw, titlefontsize = 10, 
+        tickfontsize = 6, labelfontsize = 8
+    )
+    hline!([res["att"]], label = "")
+    xlabel!("Group")
+    ylabel!("Difference")
+    title!("Adoption: " * year_str)
 
-  omega_control = vcat(weights["omega"], zeros(N1))
-  omega_treat = vcat(zeros(N0), fill(1 / N1, N1))
-
-  difs = omega_treat' * Y * (lambda_post .- lambda_pre) .- Y[1:N0, :] * (lambda_post .- lambda_pre)
-
-
-  se = if isnothing(se_method)
-    NaN
-  else
-    sqrt(vcov_synthdid_estimate(est, method=se_method))
+    plots[year_str] = p
   end
 
-  include_units = if isnothing(x_ticks)
-    1:N0
-  else
-    1:N0
-  end
-
-  est_imate = est.estimate
-
-  plot_data = DataFrame(
-    y=difs[include_units],
-    x=include_units,
-    weights=omega_control[include_units],
-    estimate=est_imate,
-    se=se
-  )
-  plot_data1 = filter(x -> x.weights > negligible_threshold, plot_data)
-  plot_data2 = filter(x -> x.weights <= negligible_threshold, plot_data)
-
-  p = plot()
-
-  scatter!(plot_data1.x, plot_data1.y, ms=plot_data1.weights * 120, color="black", label="")
-  scatter!(plot_data2.x, plot_data2.y, ms=plot_data2.weights * 120, color="black", label="", alpha=negligible_alpha,)
-  hline!([est_imate], color="#000000", label="")
-  if !isnan(se)
-    hline!([est_imate - 1.96 * se], color="#000000", line=:dash, label="")
-    hline!([est_imate + 1.96 * se], color="#000000", line=:dash, label="")
-  end
-
-  if !isnothing(x_ticks)
-    xticks!(plot_data.x, x_ticks[include_units], rotation=90)
-  end
-  return p
+  return plots
 end
 
-# function synthdid_placebo_plot(estimate::synthdid_est1)
+# function synthdid_units_plot(estimate::synthdid_est1; se_method::String="placebo", negligible_alpha::Float64=0.3, negligible_threshold::Float64=0.001, x_ticks=nothing)
+#   est = estimate
+
+#   setup, weights, N0, T0 = est.setup, est.weight, est.N0, est.T0
+
+#   Y = setup["Y"] - contract3(setup["X"], weights["beta"])
+
+#   N1, T1 = size(Y) .- (N0, T0)
+
+#   lambda_pre = vcat(weights["lambda"], fill(0, T1))
+#   lambda_post = vcat(zeros(T0), fill(1 / T1, T1))
+
+#   omega_control = vcat(weights["omega"], zeros(N1))
+#   omega_treat = vcat(zeros(N0), fill(1 / N1, N1))
+
+#   difs = omega_treat' * Y * (lambda_post .- lambda_pre) .- Y[1:N0, :] * (lambda_post .- lambda_pre)
+
+
+#   se = if isnothing(se_method)
+#     NaN
+#   else
+#     sqrt(vcov_synthdid_estimate(est, method=se_method))
+#   end
+
+#   include_units = if isnothing(x_ticks)
+#     1:N0
+#   else
+#     1:N0
+#   end
+
+#   est_imate = est.estimate
+
+#   plot_data = DataFrame(
+#     y=difs[include_units],
+#     x=include_units,
+#     weights=omega_control[include_units],
+#     estimate=est_imate,
+#     se=se
+#   )
+#   plot_data1 = filter(x -> x.weights > negligible_threshold, plot_data)
+#   plot_data2 = filter(x -> x.weights <= negligible_threshold, plot_data)
+
+#   p = plot()
+
+#   scatter!(plot_data1.x, plot_data1.y, ms=plot_data1.weights * 120, color="black", label="")
+#   scatter!(plot_data2.x, plot_data2.y, ms=plot_data2.weights * 120, color="black", label="", alpha=negligible_alpha,)
+#   hline!([est_imate], color="#000000", label="")
+#   if !isnan(se)
+#     hline!([est_imate - 1.96 * se], color="#000000", line=:dash, label="")
+#     hline!([est_imate + 1.96 * se], color="#000000", line=:dash, label="")
+#   end
+
+#   if !isnothing(x_ticks)
+#     xticks!(plot_data.x, x_ticks[include_units], rotation=90)
+#   end
+#   return p
 # end
 
-function synthdid_rmse_plot(estimate::synthdid_est1)
-  rmse = sqrt.(estimate.weight["vals"])
+# # function synthdid_placebo_plot(estimate::synthdid_est1)
+# # end
 
-  data = DataFrame(rmse=rmse, x=1:length(rmse))
-  p = plot()
-  plot!(data.x, data.rmse, label="estimate")
-  xlabel!("iteration")
-  ylabel!("rmse")
-  print(plot(p))
-  return Dict("data" => data, "plot" => p)
-end
+# function synthdid_rmse_plot(estimate::synthdid_est1)
+#   rmse = sqrt.(estimate.weight["vals"])
+
+#   data = DataFrame(rmse=rmse, x=1:length(rmse))
+#   p = plot()
+#   plot!(data.x, data.rmse, label="estimate")
+#   xlabel!("iteration")
+#   ylabel!("rmse")
+#   print(plot(p))
+#   return Dict("data" => data, "plot" => p)
+# end
