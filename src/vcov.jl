@@ -1,34 +1,61 @@
-function jackknife_se(data, Y_col, S_col, T_col, D_col, att = nothing; kwargs...)
+function jackknife_se(
+  data, Y_col, S_col, T_col, D_col; att::Union{Float64, Nothing} = nothing, 
+  omega_hat::Union{DataFrame, Nothing} = nothing, lambda_hat::Union{Dict, Nothing} = nothing; 
+  kwargs...
+)
   att_jk = []
   Y_col = Symbol(Y_col)
   S_col = Symbol(S_col)
   T_col = Symbol(T_col)
   units = unique(data[:, S_col])
-  N = size(units, 1)
+  T_total = sum(Matrix(unstack(data, S_col, T_col, D_col)[:, 2:end]))
 
-  if isnothing(att)
+  if all(in.(["tunit", "ty", "tyear"], Ref(names(data))))
+    sort!(data, [T_col, :tunit, S_col])
+  else
+    data = data_setup(data, S_col, T_col, D_col)
+  end
+
+  if isnothing(att) || isnothing(omega_hat) || isnothing(lambda_hat)
     res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
     att = res["att"]
-    if any(res["year_params"][:, "N1"] .< 1)
+    omega_hat = res["weights"]["omega"]
+    lambda_hat = res["weights"]["lambda"]
+    if any(res["year_params"][:, "N1"] .< 2)
       throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period"))
     end
   end
 
+  tyears = parse.(Int, names(omega_hat)[2:end])
   
   function theta(unit)
 
-    # create aux data and aux results
+    # create aux data and aux omega
+    aux_att = []
     aux_data = data[data[:, S_col] .!= unit, :]
-    aux_res = sdid(aux_data, Y_col, S_col, T_col, D_col, kwargs...)
+    aux_omega = omega_hat[omega_hat[:, S_col] .!= unit, :]
 
-    # check all adoption periods have at least 2 treatment units
-    if any(aux_res["year_params"][:, "N1"] .< 1)
-      throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period"))
-    end
+    # for a in A
+    for year in tyears
+      # yearly params
+      aux_lambda = lambda_hat[string(year)]
+      df_y = aux_data[in.(aux_data.tyear, Ref([year, nothing])), [Y_col, S_col, T_col, :tunit]]
+      N1 = size(unique(df_y[df_y.tunit .== 1, S_col]), 1)
+      if N1 < 2 throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period")) end
+      T1 = maximum(aux_data[:, T_col]) - year + 1
+      T_post = N1 * T1
+
+      # create Y matrix
+      Y = Matrix(unstack(df_y, S_col, T_col, Y_col)[:, 2:end])
+
+      # calculate tau for this a
+      tau_hat = [-aux_omega; fill(1/N1, N1)]' * Y * [-aux_lambda; fill(1/T1, T1)]
+      tau_w = T_post / T_total * tau_hat
+      aux_att = [aux_att; tau_w]
 
     # find aux att
-    aux_att = aux_res["att"]
-    return aux_att
+    # aux_att = aux_res["att"]
+    return sum(aux_att)
   end
 
   for unit in units
