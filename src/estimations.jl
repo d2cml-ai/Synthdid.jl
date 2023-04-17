@@ -51,7 +51,7 @@ function sdid(
 
     # create DataFrame with projected data
     tdf, beta, X_out = projected(tdf, Y_col, S_col, T_col, covariates)
-    beta_vars = ["time"; covariates]
+    beta_vars = [:time; covariates]
     beta = ["projected"; beta]
     info_beta = DataFrame([[] for i in beta_vars], beta_vars)
     push!(info_beta, beta)
@@ -131,9 +131,6 @@ function sdid(
       tau_w = T_post / T_total * tau_hat
       att = [att; tau_w]
       info = [year tau_hat tau_w N0 T0 N1 T1]
-      if !isnothing(covariates)
-        info = [info info_beta']
-      end
       info_df = DataFrame([i for i in info], names(year_params))
       append!(year_params, info_df)
       year_weights["omega"][:, string(year)] = omega
@@ -141,12 +138,13 @@ function sdid(
       Y_out[string(year)] = Y
     end
     
+    year_weights["beta"] = info_beta
     att = sum(att)
   end
 
   # optimized errors with covariates method
   if cov_method == "optimized"
-    beta_vars = ["time"; covariates]
+    beta_vars = [:time; covariates]
     info_beta = DataFrame([[] for i in beta_vars], beta_vars)
     covariates = Symbol.(covariates)
     X_out = Dict()
@@ -203,8 +201,8 @@ function sdid(
       info = [year tau_hat tau_w N0 T0 N1 T1]
       info_df = DataFrame([i for i in info], names(year_params))
       append!(year_params, info_df)
-      year_weights["omega"][:, string(year)] = omega
-      year_weights["lambda"][string(year)] = lambda
+      year_weights["omega"][:, string(year)] = weights["omega"]
+      year_weights["lambda"][string(year)] = weights["lambda"]
       Y_out[string(year)] = Y
       X_out[string(year)] = X
       push!(info_beta, [year; weights["beta"]])

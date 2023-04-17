@@ -1,6 +1,6 @@
 function jackknife_se(
   data, Y_col, S_col, T_col, D_col; att::Union{Float64, Nothing} = nothing, 
-  omega_hat::Union{DataFrame, Nothing} = nothing, lambda_hat::Union{Dict, Nothing} = nothing; 
+  omega_hat::Union{DataFrame, Nothing} = nothing, lambda_hat::Union{Dict, Nothing} = nothing, 
   kwargs...
 )
   att_jk = []
@@ -52,6 +52,7 @@ function jackknife_se(
       tau_hat = [-aux_omega; fill(1/N1, N1)]' * Y * [-aux_lambda; fill(1/T1, T1)]
       tau_w = T_post / T_total * tau_hat
       aux_att = [aux_att; tau_w]
+    end
 
     # find aux att
     # aux_att = aux_res["att"]
