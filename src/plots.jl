@@ -1,10 +1,6 @@
 
-function plot_outcomes(
-  data, Y_col::Union{String, Symbol}, S_col::Union{String, Symbol}, 
-  T_col::Union{String, Symbol}, D_col::Union{String, Symbol}; kwargs...
-)
-
-  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...);
+function plot_outcomes(res::Dict)
+  
   t_span = res["t_span"]; 
   tyears = res["tyears"];
   N0 = size(res["weights"]["omega"], 1)
@@ -33,7 +29,7 @@ function plot_outcomes(
     start_w = fill(1/n_features, n_features);
     omega_hat = res["weights"]["omega"][:, year_str];
     lambda_hat = res["weights"]["lambda"][year_str];
-    _intercept = (start_w - omega_hat)' * Y_pre_c * lambda_hat;
+    # _intercept = (start_w - omega_hat)' * Y_pre_c * lambda_hat;
     Y_sdid_traj = omega_hat' * Y_c # .+ _intercept;
 
     # plot parameters for scaling/offsets
@@ -41,7 +37,7 @@ function plot_outcomes(
     plot_y_max = maximum([Y_sdid_traj; Y_t])
     plot_height = plot_y_max - plot_y_min
 
-    p = plot(t_span, Y_sdid_traj', label = "Control", ls = :dash)
+    p = Plots.plot(t_span, Y_sdid_traj', label = "Control", ls = :dash)
     plot!(t_span, Y_t', label = "Treatment")
     plot!(t_span[1:T0], lambda_hat .* plot_height' / 3 .+ plot_y_min, label = "", fillrange = plot_y_min, lw = 0)
     vline!([year], label = "")
@@ -52,12 +48,17 @@ function plot_outcomes(
   return plots
 end
 
-function plot_weights(
+function plot_outcomes(
   data, Y_col::Union{String, Symbol}, S_col::Union{String, Symbol}, 
   T_col::Union{String, Symbol}, D_col::Union{String, Symbol}; kwargs...
 )
 
-  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
+  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...);
+  return plot_outcomes(res::Dict)
+end
+
+function plot_weights(res::Dict)
+
   tyears = res["tyears"]
   plots = Dict()
 
@@ -88,7 +89,7 @@ function plot_weights(
     plot_ms = (plot_ms .+ 4 * maximum(omega_hat)) * 6
     plot_ms[plot_ms .== 40 * maximum(omega_hat)] .= 4
     
-    p = plot(
+    p = Plots.plot(
         plot_units, plot_difs, seriestype = :scatter, label = "", mc = plot_cols, xrotation = 90, 
         xticks = (1:N0, units), ms = plot_ms, shape = plot_shape, msw = plot_msw, titlefontsize = 10, 
         tickfontsize = 6, labelfontsize = 8
@@ -102,4 +103,14 @@ function plot_weights(
   end
 
   return plots
+end
+
+function plot_weights(
+  data, Y_col::Union{String, Symbol}, S_col::Union{String, Symbol}, 
+  T_col::Union{String, Symbol}, D_col::Union{String, Symbol}; kwargs...
+)
+
+  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
+  
+  return plot_weights(res)
 end

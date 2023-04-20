@@ -1,6 +1,6 @@
 module Synthdid
 
-export fw_step, sc_weight_fw, sc_weight_covariates, sdid, california_prop99, quota, jackknife_se, bootstrap_se, placebo_se, plot_outcomes, plot_weights, SynthDID
+export fw_step, sc_weight_fw, sc_weight_covariates, sdid, california_prop99, quota, jackknife_se, bootstrap_se, placebo_se, plot_outcomes, plot_weights, SynthDID, plot
 
 using DataFrames, Plots, CSV, Statistics, Distributions, Random
 

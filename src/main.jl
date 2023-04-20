@@ -15,6 +15,7 @@ mutable struct SynthDID
   omega_hat::DataFrame
   lambda_hat::Dict
   beta_hat::Union{Nothing, DataFrame}
+  year_params::DataFrame
   ATT::Float64
   se::Float64
   t_stat::Float64
@@ -49,6 +50,7 @@ function SynthDID(data, Y_col, S_col, T_col, D_col; se_method::String = "placebo
   omega_hat = res["weights"]["omega"]
   lambda_hat = res["weights"]["lambda"]
   beta_hat = res["weights"]["beta"]
+  year_params = res["year_params"]
   ATT = res["att"]
   Y = res["Y"]
   X = res["X"]
@@ -70,10 +72,10 @@ function SynthDID(data, Y_col, S_col, T_col, D_col; se_method::String = "placebo
   ci_inf = ATT - se * 1.96
   ci_sup = ATT + se * 1.96
   coef_table = DataFrame([[ATT], [se], [t_stat], [p_val], [ci_inf], [ci_sup]], table_cols)
-
+  
   obj = SynthDID(
     data, Y_col, S_col, T_col, D_col, proc_data, covariates, cov_method, se_method, tyears, t_span, omega_hat, 
-    lambda_hat, beta_hat, ATT, se, t_stat, p_val, Y, X, N, T, N0, T0, coef_table
+    lambda_hat, beta_hat, year_params, ATT, se, t_stat, p_val, Y, X, N, T, N0, T0, coef_table
   )
   return obj
 end
@@ -102,4 +104,38 @@ function Base.summary(obj::SynthDID)
   println(coef_table)
 
 end
+
+function plot(obj::SynthDID, plottype::String = "outcomes")
+
+  if !(plottype in ["outcomes", "weights"])
+    throw(ArgumentError("positional argument plottype must be either \"outcomes\" or \"weights\""))
+  end
+
+  if plottype == "weights"
+    res = Dict(
+      "tyears" => obj.tyears, 
+      "weights" => Dict("omega" => obj.omega_hat, "lambda" => obj.lambda_hat)
+    )
+    return plot_weights(res)
+  end
+
+  res = Dict(
+    "t_span" => obj.t_span, "tyears" => obj.tyears, 
+    "weights" => Dict("omega" => obj.omega_hat, "lambda" => obj.lambda_hat), 
+    "year_params" => obj.year_params, "Y" => obj.Y
+  )
+
+  return plot_outcomes(res)
+end
+
+function Base.show(io::IO, ::MIME"text/html", obj::SynthDID)
+
+  table = obj.coef_table
+  println(io, table)
+end
   
+function Base.show(io::IO, ::MIME"text/plain", obj::SynthDID)
+
+  table = obj.coef_table
+  println(io, table)
+end
