@@ -1,6 +1,6 @@
-using Synthdid.JL
+using Synthdid
 using Test
 
-@testset "Synthdid.JL.jl" begin
+@testset "Synthdid" begin
     # Write your tests here.
 end
