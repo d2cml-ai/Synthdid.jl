@@ -105,18 +105,23 @@ function Base.summary(obj::SynthDID)
 
 end
 
-function plot(obj::SynthDID, plottype::String = "outcomes")
+function plot(obj::SynthDID, plottype::String = "outcomes"; save::Bool = false, dir::String = "", format::String = "png")
 
   if !(plottype in ["outcomes", "weights"])
-    throw(ArgumentError("positional argument plottype must be either \"outcomes\" or \"weights\""))
+    throw(ArgumentError("positional argument plottype must be either \"outcomes\" or \"weights\", got $plottype"))
+  end
+
+  if !(format in ["png", "pdf", "ps", "svg"])
+    throw(ArgumentError("keyword argument `format` must be \"png\", \"pdf\", \"ps\", or \"svg\", got $format"))
   end
 
   if plottype == "weights"
     res = Dict(
       "tyears" => obj.tyears, 
-      "weights" => Dict("omega" => obj.omega_hat, "lambda" => obj.lambda_hat)
+      "weights" => Dict("omega" => obj.omega_hat, "lambda" => obj.lambda_hat), 
+      "year_params" => obj.year_params
     )
-    return plot_weights(res)
+    return plot_weights(res, save = save, dir = dir, format = format)
   end
 
   res = Dict(
@@ -125,7 +130,7 @@ function plot(obj::SynthDID, plottype::String = "outcomes")
     "year_params" => obj.year_params, "Y" => obj.Y
   )
 
-  return plot_outcomes(res)
+  return plot_outcomes(res, save = save, dir = dir, format = format)
 end
 
 function Base.show(io::IO, ::MIME"text/html", obj::SynthDID)
