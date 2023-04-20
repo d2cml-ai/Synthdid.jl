@@ -184,7 +184,7 @@ Placebo replications (50). This may take some time.
 ----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5
 ..................................................     50
 
-1.6649675487201678
+1.8918455360543351
 ```
 
 
@@ -209,14 +209,157 @@ Placebo replications (50). This may take some time.
  Row │ ATT      Std. Err.  t        P>|t|       [95% Conf.  Interval]
      │ Float64  Float64    Float64  Float64     Float64     Float64
 ─────┼────────────────────────────────────────────────────────────────
-   1 │ 8.05903    1.68837  4.77327  1.81255e-6     4.74984    11.3682
+   1 │ 8.05903    1.65142  4.88005  1.06058e-6     4.82224    11.2958
 ```
 
 
 
 
 
+## Plotting
+
+This package uses the `GR` backend for `Plotly`, which allows to quickly generate plots and save them in `png`, `pdf`, `ps`, or `svg` format. All plots are stored in a dictionary by treatment year subsample.
+
+We implement plotting outcome variable comparations:
+
+```julia
+plots = plot_outcomes(data, :PacksPerCapita, :State, :Year, :treated)
+plots["1989"]
+```
+
+
+![Figure_1](docs/src/images/california/outcomes_1989.png)
+
+Plotting weights is also implemented:
+
+```julia
+plots = plot_weights(data, :PacksPerCapita, :State, :Year, :treated)
+plots["1989"]
+```
+
+
+
+![Figure_2](docs/src/images/california/weights_1989.png)
+
+The dictionary design is specially useful for staggered treatment cases:
+
+```julia
+plots = plot_outcomes(data, :womparl, :country, :year, :quota)
+plots["2000"]
+```
+
+
+
+![Figure_3](docs/src/images/quota/outcomes_2000.png)
+
+```julia
+plots["2002"]
+```
+
+
+
+![Figure_4](docs/src/images/quota/outcomes_2002.png)
+
+```julia
+plots["2003"]
+```
+
+
+
+![Figure_5](docs/src/images/quota/outcomes_2003.png)
+
+```julia
+plots["2005"]
+```
+
+
+
+![Figure_6](docs/src/images/quota/outcomes_2005.png)
+
+```julia
+plots["2010"]
+```
+
+
+
+![Figure_7](docs/src/images/quota/outcomes_2010.png)
+
+```julia
+plots["2012"]
+```
+
+
+
+![Figure_8](docs/src/images/quota/outcomes_2012.png)
+
+```julia
+plots["2013"]
+```
+
+
+
+![Figure_9](docs/src/images/quota/outcomes_2013.png)
+
+```julia
+plots = plot_weights(data, :womparl, :country, :year, :quota)
+plots["2000"]
+```
+
+
+
+![Figure_10](docs/src/images/quota/weights_2000.png)
+
+```julia
+plots["2002"]
+```
+
+
+
+![Figure_11](docs/src/images/quota/weights_2002.png)
+
+```julia
+plots["2003"]
+```
+
+
+
+![Figure_12](docs/src/images/quota/weights_2003.png)
+
+```julia
+plots["2005"]
+```
+
+
+
+![Figure_13](docs/src/images/quota/weights_2005.png)
+
+```julia
+plots["2010"]
+```
+
+
+
+![Figure_14](docs/src/images/quota/weights_2010.png)
+
+```julia
+plots["2012"]
+```
+
+
+
+![Figure_15](docs/src/images/quota/weights_2012.png)
+
+```julia
+plots["2013"]
+```
+
+
+
+![Figure_16](docs/src/images/quota/weights_2013.png)
+
 ### References
 Dmitry Arkhangelsky, Susan Athey, David A. Hirshberg, Guido W. Imbens, and Stefan Wager. Synthetic Difference in Differences, American Economic Review, December 2021.
+
 Damian Clarke, Daniel Pailañir, Susan Athey, and Guido Imbens. Synthetic Difference-in-Differences Estimation. Institute of Labor Economics Discussion Paper Series, January 2023.
+
 Sebastian Kranz. Synthetic Difference-in-Differences with Time-Varying Covariates. January 2022.

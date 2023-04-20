@@ -1,3 +1,4 @@
+gr()
 
 function plot_outcomes(res::Dict; save::Bool = false, dir::String = "", format::String = "png")
 
@@ -76,12 +77,13 @@ function plot_weights(res::Dict; save::Bool = false, dir::String = "", format::S
 
   tyears = res["tyears"]
   year_params = res["year_params"]
+  S_col = Symbol(names(res["weights"]["omega"])[1])
   plots = Dict()
 
   for year in tyears
     year_str = string(year)
     # if isnothing(units) units = res["weights"]["omega"][:, S_col]
-    units = res["weights"]["omega"][:, :country]
+    units = res["weights"]["omega"][:, S_col]
     omega_hat = res["weights"]["omega"][:, year_str]
     lambda_hat = res["weights"]["lambda"][year_str]
     tau_hat = year_params[year_params.treat_year .== year, :tau][1]
