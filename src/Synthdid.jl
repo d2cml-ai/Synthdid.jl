@@ -1,16 +1,17 @@
 module Synthdid
 
-export data, estimate_dgp, simulate_dgp, synthdid_plot, synthdid_units_plot, synthdid_rmse_plot, fw_step, sc_weight_fw, summary_synth, synthdid_estimate, sc_estimate, did_estimate, synthdid_effect_curve, panel_matrices, random_low_rank, vcov_synthdid_estimate
+export fw_step, sc_weight_fw, sc_weight_covariates, sdid, california_prop99, quota, jackknife_se, bootstrap_se, placebo_se, plot_outcomes, plot_weights, SynthDID, plot
 
-using DataFrames, Plots, CSV, Statistics, Shuffle, Distributions
+using DataFrames, Plots, CSV, Statistics, Distributions, Random
 
 # Write your package code here.
+include("main.jl")
 include("data.jl")
 include("utils.jl")
-include("placebo_simulations.jl")
+# include("placebo_simulations.jl")
 include("solver.jl")
-include("main.jl")
+include("estimations.jl")
 include("vcov.jl")
 include("plots.jl")
-include("summary.jl")
+# include("summary.jl")
 end

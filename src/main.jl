@@ -1,150 +1,141 @@
-mutable struct synthdid_est1
-  estimate::Float64
-  weight::Any
-  setup::Any
-  opts::Any
-  N0::Int64
-  T0::Int64
+
+mutable struct SynthDID
+
+  data::DataFrame
+  Y_col::Symbol
+  S_col::Symbol
+  T_col::Symbol
+  D_col::Symbol
+  proc_data::DataFrame
+  covariates::Union{Nothing, Vector}
+  cov_method::Union{String, Nothing}
+  se_method::String
+  tyears::Vector
+  t_span::Vector
+  omega_hat::DataFrame
+  lambda_hat::Dict
+  beta_hat::Union{Nothing, DataFrame}
+  year_params::DataFrame
+  ATT::Float64
+  se::Float64
+  t_stat::Float64
+  p_val::Float64
+  Y::Dict
+  X::Union{Dict, Nothing, Matrix}
+  N::Int
+  T::Int
+  N0::Int
+  T0::DataFrame
+  coef_table::DataFrame
 end
 
-function sparsify_function(v::Vector)
-  v[v.<=maximum(v)/4] .= 0
-  return v ./ sum(v)
-end
+function SynthDID(data, Y_col, S_col, T_col, D_col; se_method::String = "placebo", se_reps::Int = 50, kwargs...)
 
-function synthdid_estimate(Y::Matrix, N0::Int, T0::Int;
-  X::Array=Array{Any,3}(undef, size(Y, 1), size(Y, 2), 0),
-  # X = zeros([size(Y, 1), size(Y, 2), 0])
-  noise_level::Float64=std(diff(Y[1:N0, 1:T0], dims=2)),
-  eta_omega::Float64=((size(Y, 1) - N0) * (size(Y, 2) - T0))^(1 / 4),
-  eta_lambda::Float64=1e-6,
-  zeta_omega::Float64=eta_omega * noise_level,
-  zeta_lambda::Float64=eta_lambda * noise_level,
-  omega_intercept::Bool=true,
-  lambda_intercept::Bool=true,
-  weights=Dict("omega" => nothing, "lambda" => nothing, "vals" => [1, 2, 3.0]),
-  update_omega::Bool=isnothing(weights["omega"]),
-  update_lambda::Bool=isnothing(weights["lambda"]),
-  min_decrease::Float64=1e-5 * noise_level,
-  max_iter::Int=10000,
-  sparsify::Function=sparsify_function,
-  max_iter_pre_sparsify::Int=100)
-  if (!(size(Y)[1] > N0) && !(size(Y)[2] > T0) && !(length(size(X)) == 2 || length(size(X)) == 3) & !(size(X)[1:2] == size(Y)) && !(isa(weights, Dict))
-      && !((isnothing(weights["lambda"])) || (length(weights["lambda"]) == T0)) && !((isnothing(weights["omega"])) || (length(weights["omega"]) == N0))
-      && !(!(isnothing(weights["lambda"])) || (update_lambda)) && !((!isnothing(weights["omega"]) || (update_omega))))
-
-    error("error at !(size(Y)[1] > N0) || !(size(Y)[2] > T0) || ... in synthdid_estimate function")
-  else
-    "continue"
+  # ensure se_method is a valid option
+  if !(se_method in ["jackknife", "bootstrap", "placebo"])
+    throw(ArgumentError("se_method must be 'jackknife', 'bootstrap', or 'placebo', got $se_method"))
   end
 
-  N1 = size(Y, 1) - N0
-  T1 = size(Y, 2) - T0
+  Y_col = Symbol(Y_col)
+  S_col = Symbol(S_col)
+  T_col = Symbol(T_col)
+  D_col = Symbol(D_col)
 
-  if length(size(X)) == 3
-    weights["vals"] = nothing
-    weights["lambda_vals"] = nothing
-    weights["omega_vals"] = nothing
-    if (update_lambda)
-      Yc = collapse_form(Y, N0, T0)
-      lambda_opt = sc_weight_fw(
-        # TODO: Lambda weights make a error
-        Yc[1:N0, :], zeta_lambda, intercept=lambda_intercept, lambda=weights["lambda"], min_decrease=min_decrease, max_iter=max_iter_pre_sparsify)
-      if (!isnothing(sparsify))
-        lambda_lambda_opt = sparsify(lambda_opt["lambda"])
-        lambda_opt = sc_weight_fw(Yc[1:N0, :], zeta_lambda, intercept=lambda_intercept, lambda=lambda_lambda_opt, min_decrease=min_decrease, max_iter=max_iter)
-      end
-      weights["lambda"] = lambda_opt["lambda"]
-      weights["lambda_vals"] = lambda_opt["vals"]
-      weights["vals"] = lambda_opt["vals"]
-    end
-    if (update_omega)
-      Yc = collapse_form(Y, N0, T0)
-      matrix_yc = Matrix(transpose(Yc[:, 1:T0]))
-      omega_opt = sc_weight_fw(
-        matrix_yc, zeta_omega, intercept=omega_intercept, lambda=weights["omega"], min_decrease=min_decrease, max_iter=max_iter_pre_sparsify)
-      if (!isnothing(sparsify))
-        omega_lambda_opt = sparsify(omega_opt["lambda"])
-        omega_opt = sc_weight_fw(matrix_yc, zeta_omega, intercept=omega_intercept, lambda=omega_lambda_opt, min_decrease=min_decrease, max_iter=max_iter)
-      end
-      weights["omega"] = omega_opt["lambda"]
-      weights["omega_vals"] = omega_opt["vals"]
-      if (isnothing(weights["vals"]))
-        weights["vals"] = omega_opt["vals"]
-      else
-        weights["vals"] = pairwise_sum_decreasing(weights["vals"], omega_opt["vals"])
-      end
-    end
+  res = sdid(data, Y_col, S_col, T_col, D_col; kwargs...)
+  proc_data = res["proc_data"]
+  covariates = res["covariates"]
+  cov_method = res["cov_method"]
+  tyears = res["tyears"]
+  t_span = res["t_span"]
+  omega_hat = res["weights"]["omega"]
+  lambda_hat = res["weights"]["lambda"]
+  beta_hat = res["weights"]["beta"]
+  year_params = res["year_params"]
+  ATT = res["att"]
+  Y = res["Y"]
+  X = res["X"]
+  N, T = res["N"], res["T"]
+  N0, T0 = res["N0"], res["T0"]
+
+  if se_method == "jackknife"
+    se = jackknife_se(data, Y_col, S_col, T_col, D_col; att = ATT, omega_hat = omega_hat, lambda_hat = lambda_hat, kwargs...)
+  elseif se_method == "bootstrap"
+    se = bootstrap_se(data, Y_col, S_col, T_col, D_col; n_boot = se_reps, kwargs...)
   else
-    YC = collapse_form(Y, N0, T0)
-    Xc = [collapse_form(Xi, N0, T0) for Xi in eachslice(X, dims=3)]
-    Yc = collapsed.form(Y, N0, T0)
+    se = placebo_se(data, Y_col, S_col, T_col, D_col; n_reps = se_reps, kwargs...)
   end
 
-  weights["beta"] = nothing
-  X_beta = contract3(X, weights["beta"])
-  a = vcat(-weights["omega"], fill(1 / N1, N1))'
-  b = vcat(-weights["lambda"], fill(1 / T1, T1))
+  t_stat = ATT / se
+  p_val = 2 * (1 - cdf(Normal(0, 1), abs(t_stat)))
 
-  estimate = a * (Y .- X_beta) * b
-  setup = Dict("Y" => Y, "X" => X, "N0" => N0, "T0" => T0)
-  opts = Dict(
-    "zeta_omega" => zeta_omega,
-    "zeta_lambda" => zeta_lambda,
-    "omega_intercept" => omega_intercept,
-    "lambda_intercept" => lambda_intercept,
-    "update_omega" => update_omega,
-    "update_lambda" => update_lambda,
-    "min_decrease" => min_decrease,
-    "max_iter" => max_iter
+  table_cols = ["ATT", "Std. Err.", "t", "P>|t|", "[95% Conf.", "Interval]"]
+  ci_inf = ATT - se * 1.96
+  ci_sup = ATT + se * 1.96
+  coef_table = DataFrame([[ATT], [se], [t_stat], [p_val], [ci_inf], [ci_sup]], table_cols)
+  
+  obj = SynthDID(
+    data, Y_col, S_col, T_col, D_col, proc_data, covariates, cov_method, se_method, tyears, t_span, omega_hat, 
+    lambda_hat, beta_hat, year_params, ATT, se, t_stat, p_val, Y, X, N, T, N0, T0, coef_table
   )
-  return synthdid_est1(estimate, weights, setup, opts, N0, T0)
+  return obj
 end
 
+function Base.summary(obj::SynthDID)
+  
+  Y_col = obj.Y_col
+  D_col = obj.D_col
+  se_method = obj.se_method
+  coef_table = obj.coef_table
+  covariates = obj.covariates
+  cov_method = obj.cov_method
 
+  println("Outcome variable: $Y_col")
+  println("Treatment variable: $D_col")
+  println("Standard error estimation method: $se_method")
 
-
-function sc_estimate(Y, N0, T0, eta_omega=1e-6; kargs...)
-
-  estimate = synthdid_estimate(Y, N0, T0, eta_omega=1e-16, omega_intercept=false,
-    weights=Dict("omega" => nothing, "lambda" => fill(0, T0), "vals" => [1, 2, 3.0]))
-  return estimate
-end
-
-
-
-function did_estimate(Y, N0, T0; kargs...)
-  estimate = synthdid_estimate(Y, N0, T0, weights=Dict("omega" => fill(1 / N0, N0), "lambda" => fill(1 / T0, T0), "vals" => [1, 2, 3.0]), kargs...)
-  return estimate
-end
-
-
-
-
-# TODO: synthdid_placebo
-function synthdid_placebo(estimate::synthdid_est1, terated_fraction=nothing)
-  setup = estimate.setup
-  opts = estimate.opts
-  weights = estimate.weight
-  x_beta = contract3(setup["X"], weights["beta"])
-  estimator = estimate.estimate
-
-  if (isnothing(terated_fraction))
-    terated_fraction = 1 - setup["T0"] / size(setup.Y, 2)
+  if !isnothing(covariates)
+    print("Controled for covariate(s) ")
+    for i in covariates
+      print("$i, ")
+    end
+    print("using $cov_method residuals method\n")
   end
-  placebo_t0 = floor(setup["T0"] * (1 - terated_fraction))
+
+  println(coef_table)
+
 end
 
-function synthdid_effect_curve(estimate::synthdid_est1)
-  setup = estimate.setup
-  weights = estimate.weight
-  x_beta = contract3(setup["X"], weights["beta"])
+function plot(obj::SynthDID, plottype::String = "outcomes")
 
-  N1 = size(setup["Y"], 1) - estimate.N0
-  T1 = size(setup["Y"], 2) - estimate.T0
+  if !(plottype in ["outcomes", "weights"])
+    throw(ArgumentError("positional argument plottype must be either \"outcomes\" or \"weights\""))
+  end
 
-  tau_sc = vcat(-weights["omega"], fill(1 / N1, N1))' * (setup["Y"] .- x_beta)
-  tau_curve = tau_sc[setup["T0"].+(1:T1)] .- (tau_sc[1:setup["T0"]]' * weights["lambda"])
-  return tau_curve
+  if plottype == "weights"
+    res = Dict(
+      "tyears" => obj.tyears, 
+      "weights" => Dict("omega" => obj.omega_hat, "lambda" => obj.lambda_hat)
+    )
+    return plot_weights(res)
+  end
+
+  res = Dict(
+    "t_span" => obj.t_span, "tyears" => obj.tyears, 
+    "weights" => Dict("omega" => obj.omega_hat, "lambda" => obj.lambda_hat), 
+    "year_params" => obj.year_params, "Y" => obj.Y
+  )
+
+  return plot_outcomes(res)
 end
 
+function Base.show(io::IO, ::MIME"text/html", obj::SynthDID)
+
+  table = obj.coef_table
+  println(io, table)
+end
+  
+function Base.show(io::IO, ::MIME"text/plain", obj::SynthDID)
+
+  table = obj.coef_table
+  println(io, table)
+end

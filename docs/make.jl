@@ -11,7 +11,7 @@ makedocs(;
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://d2cml-ai.github.io/Synthdid.jl",
-        edit_link="master",
+        edit_link="main",
         assets=String[]
     ),
     pages=[
@@ -21,5 +21,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/d2cml-ai/Synthdid.jl",
-    devbranch="master"
+    devbranch="main"
 )
