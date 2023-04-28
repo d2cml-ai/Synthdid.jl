@@ -41,7 +41,7 @@ function jackknife_se(
       aux_lambda = lambda_hat[string(year)]
       df_y = aux_data[in.(aux_data.tyear, Ref([year, nothing])), [Y_col, S_col, T_col, :tunit]]
       N1 = size(unique(df_y[df_y.tunit .== 1, S_col]), 1)
-      if N1 < 2 throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period")) end
+      if N1 < 1 throw(ErrorException("Jackknife standard error needs at least two treated units for each treatment period")) end
       T1 = maximum(aux_data[:, T_col]) - year + 1
       T_post = N1 * T1
 
